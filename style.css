@@ -5,7 +5,7 @@
     --comic-blue: #00d2ff;
     --comic-white: #ffffff;
     --panel-border: 5px solid #101012;
-    --comic-shadow: 10px 10px 0px #1    01012;
+    --comic-shadow: 10px 10px 0px #101012;
     --small-shadow: 5px 5px 0px #101012;
 }
 
@@ -189,3 +189,233 @@ body {
 .cover-footer { margin-left: 14px; background: var(--comic-yellow); border-top: 4px solid var(--ink-black); padding: 0.5rem 0.8rem; display: flex; justify-content: space-between; align-items: center; z-index: 5; }
 .cover-title { font-family: 'Bangers', cursive; font-size: 1.8rem; color: var(--ink-black); letter-spacing: 0.05em; line-height: 1; }
 .cover-barcode span { font-family: monospace; letter-spacing: -2px; font-size: 1.3rem; font-weight: 900; color: #101012; }
+
+/* ==================== LOGIN ==================== */
+.login-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    overflow-y: auto;
+    display: flex;
+    background-color: #d7b579;
+    background-image: linear-gradient(rgba(30, 15, 0, 0.55), rgba(30, 15, 0, 0.85)), url('comics/comicstrip.jpg');
+    background-size: 100% 100%, 550px auto;
+    animation: comicPan 90s linear infinite;
+}
+.login-wrap {
+    margin: auto;
+    width: 100%;
+    max-width: 400px;
+    padding: 2rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.login-logo {
+    margin-bottom: 1.75rem;
+    font-family: 'Bangers', cursive;
+    font-size: clamp(3.4rem, 14vw, 5rem);
+    letter-spacing: 0.06em;
+    line-height: 0.9;
+    color: var(--comic-red);
+    -webkit-text-stroke: 3px var(--ink-black);
+    text-shadow: 4px 4px 0 var(--comic-white), 7px 7px 0 var(--ink-black);
+    transform: rotate(-2deg);
+}
+.login-card {
+    width: 100%;
+    background: var(--comic-white);
+    border: var(--panel-border);
+    box-shadow: 10px 10px 0 var(--ink-black);
+}
+
+/* Log in / Sign up tabs */
+.login-tabs { display: flex; border-bottom: 4px solid var(--ink-black); }
+.login-tab {
+    flex: 1;
+    padding: 0.6rem;
+    background: var(--comic-white);
+    border: none;
+    font-family: 'Bangers', cursive;
+    font-size: 1.3rem;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.login-tab + .login-tab { border-left: 4px solid var(--ink-black); }
+.login-tab:hover { background: #fff8c2; }
+.login-tab.active { background: var(--comic-yellow); }
+
+/* Form */
+.login-body { padding: 1.5rem; }
+.login-input {
+    width: 100%;
+    margin-bottom: 1rem;
+    padding: 0.7rem 0.85rem;
+    background: #fbf6ec;
+    border: 3px solid var(--ink-black);
+    font-family: 'Comic Neue', cursive;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--ink-black);
+    outline: none;
+    transition: background 0.15s, box-shadow 0.15s;
+}
+.login-input::placeholder { color: #8a8478; font-weight: 400; }
+.login-input:focus { background: #fff8c2; box-shadow: 4px 4px 0 var(--ink-black); }
+
+.login-btn {
+    width: 100%;
+    padding: 0.7rem;
+    border: 4px solid var(--ink-black);
+    box-shadow: 4px 4px 0 var(--ink-black);
+    font-family: 'Bangers', cursive;
+    font-size: 1.3rem;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s, background 0.15s;
+}
+.login-btn:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--ink-black); }
+.login-btn:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--ink-black); }
+.login-btn:focus-visible { outline: 3px solid var(--comic-yellow); outline-offset: 3px; }
+.login-btn-primary { background: var(--comic-red); color: var(--comic-white); }
+.login-btn-primary:hover { background: #ff334b; }
+.login-btn-guest { margin-top: 1rem; background: var(--comic-blue); color: var(--ink-black); }
+.login-btn-guest:hover { background: #4ddbff; }
+
+.login-error {
+    margin-top: 0.9rem;
+    text-align: center;
+    font-family: 'Comic Neue', cursive;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--comic-red);
+}
+.login-error:empty { display: none; }
+
+/* ==================== SHARED OMNI NAV (all logged-in pages) ==================== */
+.omni-nav-bar {
+    max-width: 1200px;
+    margin: 0 auto 1.5rem auto;
+    background: var(--ink-black);
+    border: var(--panel-border);
+    box-shadow: var(--comic-shadow);
+    padding: 0.75rem 1.25rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: space-between;
+    transform: rotate(-0.2deg);
+}
+.omni-nav-links { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.omni-nav-btn {
+    display: inline-block;
+    background: var(--comic-white);
+    color: var(--ink-black);
+    border: 3px solid var(--ink-black);
+    font-family: 'Bangers', cursive;
+    font-size: 1rem;
+    letter-spacing: 0.03em;
+    padding: 0.45rem 0.9rem;
+    box-shadow: 3px 3px 0px var(--comic-white);
+    cursor: pointer;
+    text-decoration: none;
+    transition: transform 0.12s, box-shadow 0.12s, background 0.12s;
+}
+.omni-nav-btn:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0px var(--comic-white); background: var(--comic-yellow); }
+.omni-nav-btn.active { background: var(--comic-yellow); box-shadow: 5px 5px 0px var(--comic-red); }
+.omni-nav-session { display: flex; align-items: center; gap: 0.75rem; }
+.omni-nav-role {
+    font-family: 'Bangers', cursive;
+    font-size: 0.95rem;
+    letter-spacing: 0.1em;
+    padding: 0.3rem 0.7rem;
+    border: 2px solid currentColor;
+    color: var(--comic-yellow);
+}
+.omni-role-admin { color: var(--comic-red); }
+.omni-role-guest { color: var(--comic-blue); }
+.omni-nav-logout { background: var(--comic-red); color: var(--comic-white); }
+.omni-nav-logout:hover { background: #ff334b; }
+@media (max-width: 768px) { .omni-nav-bar { justify-content: center; } .omni-nav-session { width: 100%; justify-content: center; } }
+
+/* ==================== MATCHUP SIMULATOR ==================== */
+.matchup-arena { display: flex; align-items: flex-start; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin: 2rem 0; }
+.matchup-side { flex: 1 1 280px; max-width: 320px; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+.matchup-vs { font-family: 'Bangers', cursive; font-size: 3rem; color: var(--comic-red); -webkit-text-stroke: 2px var(--ink-black); align-self: center; margin-top: 2.5rem; transform: rotate(-6deg); }
+.matchup-select {
+    width: 100%; padding: 0.6rem 0.75rem; border: 3px solid var(--ink-black); background: #fbf6ec;
+    font-family: 'Comic Neue', cursive; font-weight: 700; font-size: 1.05rem; box-shadow: var(--small-shadow);
+}
+.matchup-slot-empty, .matchup-fighter-card {
+    width: 100%; background: var(--comic-white); border: var(--panel-border); box-shadow: var(--small-shadow);
+    padding: 1rem; text-align: center; position: relative; transition: box-shadow 0.2s, transform 0.2s;
+}
+.matchup-fighter-card.winner-glow { box-shadow: 0 0 0 4px var(--comic-yellow), 10px 10px 0px var(--ink-black); transform: translateY(-4px); }
+.matchup-slot-label { font-family: 'Bangers', cursive; font-size: 1rem; letter-spacing: 0.1em; color: var(--comic-blue); margin-bottom: 0.5rem; }
+.matchup-slot-placeholder { font-family: 'Comic Neue', cursive; font-weight: 700; color: #8a8478; padding: 2.5rem 0; }
+.matchup-fighter-card img { width: 100%; height: 180px; object-fit: cover; border: 3px solid var(--ink-black); margin-bottom: 0.75rem; }
+.matchup-fighter-name { font-family: 'Bangers', cursive; font-size: 1.6rem; color: var(--comic-red); line-height: 1; }
+.matchup-fighter-sub { font-family: 'Comic Neue', cursive; font-weight: 700; font-size: 0.9rem; margin-top: 0.25rem; }
+.winner-stamp {
+    position: absolute; top: -14px; right: -10px; background: var(--comic-yellow); color: var(--ink-black);
+    border: 3px solid var(--ink-black); font-family: 'Permanent Marker', cursive; font-size: 1.1rem;
+    padding: 0.3rem 0.6rem; transform: rotate(10deg); box-shadow: 3px 3px 0px var(--ink-black); z-index: 2;
+}
+.stat-compare-box { max-width: 700px; margin: 2rem auto 0 auto; display: flex; flex-direction: column; gap: 0.9rem; }
+.stat-row { display: grid; grid-template-columns: 2.5rem 1fr 2.5rem; align-items: center; gap: 0.75rem; }
+.stat-value { font-family: 'Bangers', cursive; font-size: 1.3rem; text-align: center; color: var(--ink-black); }
+.stat-value.stat-win { color: var(--comic-red); }
+.stat-track { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 0.5rem; background: #ece4d4; border: 2px solid var(--ink-black); padding: 0.25rem 0.5rem; }
+.stat-fill { height: 10px; background: var(--comic-blue); border-radius: 2px; transition: width 0.4s ease; }
+.stat-fill-a { justify-self: end; }
+.stat-fill-b { justify-self: start; }
+.stat-fill.stat-win { background: var(--comic-red); }
+.stat-label { font-family: 'Comic Neue', cursive; font-weight: 700; font-size: 0.7rem; letter-spacing: 0.05em; text-align: center; white-space: nowrap; }
+@media (max-width: 640px) { .stat-label { font-size: 0.55rem; } }
+
+/* ==================== ADMIN CONSOLE ==================== */
+.admin-table-wrap { overflow-x: auto; border: var(--panel-border); box-shadow: var(--small-shadow); }
+.admin-table { width: 100%; border-collapse: collapse; font-family: 'Comic Neue', cursive; }
+.admin-table th { background: var(--ink-black); color: var(--comic-yellow); font-family: 'Bangers', cursive; letter-spacing: 0.05em; padding: 0.6rem 0.75rem; text-align: left; }
+.admin-table td { padding: 0.5rem 0.75rem; border-bottom: 2px solid #e5ddc9; font-weight: 700; vertical-align: middle; }
+.admin-table tr:hover td { background: #fff8c2; }
+.admin-row-thumb { width: 44px; height: 44px; object-fit: cover; border: 2px solid var(--ink-black); display: block; }
+.admin-row-actions { white-space: nowrap; display: flex; gap: 0.5rem; }
+.admin-row-actions .action-btn { font-size: 0.9rem; padding: 0.3rem 0.8rem; }
+
+.admin-fieldset { border: var(--panel-border); box-shadow: var(--small-shadow); margin: 1.5rem 0; padding: 1rem 1.25rem 1.25rem 1.25rem; background: var(--comic-white); }
+.admin-fieldset legend { font-family: 'Bangers', cursive; font-size: 1.2rem; letter-spacing: 0.08em; color: var(--comic-red); padding: 0 0.5rem; }
+.admin-fieldset-disabled { opacity: 0.6; }
+.admin-disabled-note { font-family: 'Comic Neue', cursive; font-weight: 700; color: #6b6458; }
+.admin-field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+.admin-field { display: flex; flex-direction: column; gap: 0.3rem; font-family: 'Comic Neue', cursive; font-weight: 700; font-size: 0.85rem; }
+.admin-field-wide { grid-column: 1 / -1; }
+.admin-field input, .admin-field select, .admin-field textarea {
+    padding: 0.5rem 0.6rem; border: 3px solid var(--ink-black); background: #fbf6ec;
+    font-family: 'Comic Neue', cursive; font-weight: 700; font-size: 0.95rem; resize: vertical;
+}
+.admin-field input:focus, .admin-field select:focus, .admin-field textarea:focus { background: #fff8c2; outline: none; }
+.admin-nemesis-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.admin-nemesis-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: #fbf6ec; border: 2px solid var(--ink-black); padding: 0.5rem 0.75rem; font-family: 'Comic Neue', cursive; font-weight: 700; }
+.admin-nemesis-row .action-btn { font-size: 0.85rem; padding: 0.25rem 0.7rem; flex-shrink: 0; }
+
+/* ==================== INTEL LOG ==================== */
+.intel-feed { display: flex; flex-direction: column; gap: 1.25rem; margin-top: 1.5rem; }
+.intel-card { display: flex; gap: 1rem; background: #fbf6ec; border: var(--panel-border); box-shadow: var(--small-shadow); padding: 1rem; }
+.intel-card img { width: 64px; height: 64px; object-fit: cover; border: 3px solid var(--ink-black); flex-shrink: 0; }
+.intel-card-body { flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
+.intel-card-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+.intel-hero-name { font-family: 'Bangers', cursive; font-size: 1.4rem; color: var(--comic-red); }
+.threat-badge { font-family: 'Bangers', cursive; font-size: 0.85rem; letter-spacing: 0.05em; padding: 0.2rem 0.65rem; border: 2px solid var(--ink-black); color: var(--ink-black); }
+.threat-monitoring { background: var(--comic-blue); }
+.threat-elevated { background: var(--comic-yellow); }
+.threat-critical { background: var(--comic-red); color: var(--comic-white); }
+.threat-neutralized { background: #b7e4b7; }
+.intel-report-text { font-family: 'Comic Neue', cursive; font-weight: 700; white-space: pre-wrap; }
+.intel-card-meta { font-family: 'Comic Neue', cursive; font-size: 0.8rem; color: #6b6458; }
+.intel-card-actions { display: flex; gap: 0.5rem; }
+.intel-card-actions .action-btn { font-size: 0.85rem; padding: 0.3rem 0.8rem; }
+.intel-edit-form { display: flex; flex-direction: column; gap: 0.6rem; }
+.intel-edit-form input, .intel-edit-form textarea { padding: 0.5rem; border: 3px solid var(--ink-black); background: #fff; font-family: 'Comic Neue', cursive; font-weight: 700; }

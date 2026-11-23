@@ -6,50 +6,33 @@
     <title>OMNIVERSE // Metahuman Classified</title>
     <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:ital,wght@0,400;0,700;1,700&family=Permanent+Marker&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="shared.js"></script>
 </head>
 <body>
 
-    <!-- ========================================== -->
-    <!-- 3-TIER SUPERHERO LOGIN TERMINAL            -->
-    <!-- ========================================== -->
-    <div id="login-screen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:var(--ink-black, #101012); background-image: radial-gradient(circle, #2a2a35 10%, #101012 80%); z-index:9999; display:flex; justify-content:center; align-items:center; flex-direction:column;">
-        
-        <!-- Terminal Header -->
-        <div style="transform: rotate(-2deg); margin-bottom: 2rem; text-align: center;">
-            <h1 style="font-family:'Bangers', cursive; color:var(--comic-red, #e30022); font-size:clamp(4rem, 8vw, 6rem); margin:0; text-shadow: 4px 4px 0 #fff, 8px 8px 0 var(--comic-blue, #00d2ff); letter-spacing: 2px;">OMNIVERSE TERMINAL</h1>
-            <div style="background:var(--comic-yellow, #ffde00); color:#000; border: 3px solid #000; padding: 5px 15px; font-weight:bold; font-family:'Comic Neue', cursive; font-size: 1.2rem; display:inline-block; transform: rotate(3deg) translateY(-10px); box-shadow: 4px 4px 0 #000;">RESTRICTED MULTIVERSE ACCESS</div>
-        </div>
-        
-        <!-- Login Card -->
-        <div class="narrative-box" style="background:#fff; width:100%; max-width:420px; padding:2.5rem; text-align:center; box-shadow: 16px 16px 0 var(--comic-red, #e30022); border-radius: 2px;">
-            
-            <!-- REGISTERED AGENTS (Admin & Regular User) -->
-            <div style="margin-bottom: 1.5rem; text-align: left;">
-                <h3 style="font-family:'Bangers', cursive; font-size:2rem; margin-bottom:0.2rem; color:#000; text-align:center; letter-spacing: 1px;">OFFICIAL CLEARANCE</h3>
-                <p style="font-family:'Comic Neue', cursive; font-size:0.95rem; font-weight:bold; color:#555; text-align:center; margin-bottom: 1.2rem;">(Admins & Registered Field Agents)</p>
-                
-                <input type="text" id="login-user" placeholder="AGENT ALIAS (Username)" style="width:100%; padding:0.9rem; margin-bottom:0.8rem; border:3px solid #000; font-family:'Comic Neue', cursive; font-size:1.1rem; font-weight:bold; box-sizing: border-box; background:#f4f4f4;">
-                <input type="password" id="login-pass" placeholder="PASSCODE (Password)" style="width:100%; padding:0.9rem; margin-bottom:1.2rem; border:3px solid #000; font-family:'Comic Neue', cursive; font-size:1.1rem; font-weight:bold; box-sizing: border-box; background:#f4f4f4;">
-                
-                <button onclick="attemptLogin()" class="action-btn" style="width:100%; font-size:1.4rem; padding:0.8rem; background:var(--comic-red, #e30022); color:#fff; border:4px solid #000; cursor:pointer; font-family:'Bangers', cursive; box-shadow: 5px 5px 0 #000; transition: transform 0.1s;" onmousedown="this.style.transform='translate(3px, 3px)'; this.style.boxShadow='0 0 0 #000';" onmouseup="this.style.transform='translate(0,0)'; this.style.boxShadow='5px 5px 0 #000';">AUTHORIZE IDENTIFICATION</button>
-            </div>
+    <!-- LOGIN / SIGN UP / GUEST -->
+    <div id="login-screen" class="login-screen">
+        <div class="login-wrap">
+            <h1 class="login-logo">OMNIVERSE</h1>
 
-            <!-- Divider -->
-            <div style="border-top: 4px dashed #000; margin: 2rem 0; position: relative;">
-                <span style="position: absolute; top: -16px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 15px; font-family:'Bangers', cursive; font-size: 1.3rem; color:#000;">OR</span>
-            </div>
+            <section class="login-card">
+                <div class="login-tabs">
+                    <button type="button" id="tab-login" class="login-tab active" onclick="setAuthMode('login')">LOG IN</button>
+                    <button type="button" id="tab-signup" class="login-tab" onclick="setAuthMode('signup')">SIGN UP</button>
+                </div>
 
-            <!-- PUBLIC GUESTS -->
-            <div>
-                <h3 style="font-family:'Bangers', cursive; font-size:1.6rem; margin-bottom:0.8rem; color:#000; text-align:center;">CIVILIAN ACCESS</h3>
-                <button onclick="loginAsGuest()" style="width:100%; font-size:1.3rem; padding:0.8rem; background:var(--comic-blue, #00d2ff); color:#000; border:4px solid #000; font-family:'Bangers', cursive; cursor:pointer; box-shadow: 5px 5px 0 #000; transition: transform 0.1s;" onmousedown="this.style.transform='translate(3px, 3px)'; this.style.boxShadow='0 0 0 #000';" onmouseup="this.style.transform='translate(0,0)'; this.style.boxShadow='5px 5px 0 #000';">ENTER AS GUEST (CATALOG ONLY)</button>
-            </div>
+                <form id="auth-form" class="login-body" novalidate>
+                    <input type="text" id="login-user" class="login-input" placeholder="Username" autocomplete="username" maxlength="50">
+                    <input type="password" id="login-pass" class="login-input" placeholder="Password" autocomplete="current-password" maxlength="50">
 
-            <!-- Error Output -->
-            <div id="login-error" style="color:var(--comic-red, #e30022); margin-top:1.5rem; font-weight:bold; font-family:'Bangers', cursive; font-size:1.3rem; letter-spacing: 1px;"></div>
+                    <button type="submit" id="auth-submit" class="login-btn login-btn-primary">LOG IN</button>
+                    <div id="login-error" class="login-error"></div>
+
+                    <button type="button" class="login-btn login-btn-guest" onclick="loginAsGuest()">CONTINUE AS GUEST</button>
+                </form>
+            </section>
         </div>
     </div>
-    <!-- ========================================== -->
 
     <!-- MAIN APP WRAPPER (Hidden until login) -->
     <header class="comic-masthead">
@@ -66,6 +49,8 @@
             <button id="view-mode-btn" class="comic-toggle-btn">📜 SWITCH TO CONTINUOUS STRIP</button>
         </div>
     </header>
+
+    <div id="omni-nav-container"></div>
 
     <nav id="breadcrumb-trail" class="breadcrumb-bar hidden">
         <span class="crumb" onclick="renderPublishers()">MULTIVERSE HUB</span>

@@ -1,4 +1,5 @@
-const API_URL = "http://127.0.0.1:8000/api";
+// API_URL, Session, and the shared nav renderer live in shared.js (loaded
+// before this file on every page) so every Omniverse page agrees on them.
 
 const comicStage = document.getElementById("comic-stage");
 const searchInput = document.getElementById("search-input");
@@ -521,43 +522,91 @@ document.addEventListener("DOMContentLoaded", () => {
     startArcadeTicker();
 });
 
-window.attemptLogin = async function() {
-    const user = document.getElementById("login-user").value.trim();
-    const pass = document.getElementById("login-pass").value.trim();
+// ==================== LOG IN / SIGN UP / GUEST ====================
+let authMode = "login";
+
+function enterApp() {
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("omni-nav-container").innerHTML = renderOmniNav("archive");
+    AudioFX.playPunch();
+    initComic();
+}
+
+window.setAuthMode = function(mode) {
+    authMode = mode;
+    document.getElementById("tab-login").classList.toggle("active", mode === "login");
+    document.getElementById("tab-signup").classList.toggle("active", mode === "signup");
+    document.getElementById("auth-submit").innerText = mode === "login" ? "LOG IN" : "SIGN UP";
+    document.getElementById("login-pass").autocomplete = mode === "login" ? "current-password" : "new-password";
+    document.getElementById("login-error").innerText = "";
+};
+
+function authErrorMessage(status) {
+    if (status === 401) return "Wrong username or password.";
+    if (status === 409) return "That username is already taken.";
+    if (status === 422) {
+        return authMode === "signup"
+            ? "Username: 3-50 letters, numbers, . _ -  |  Password: 6-50 characters."
+            : "Check your username and password.";
+    }
+    if (status === 503) return "Server is busy. Please try again.";
+    return "Something went wrong. Please try again.";
+}
+
+async function submitAuth() {
+    const username = document.getElementById("login-user").value.trim();
+    const password = document.getElementById("login-pass").value;
     const errorBox = document.getElementById("login-error");
-    
-    errorBox.innerText = "AUTHENTICATING...";
-    
+
+    if (!username || !password) {
+        errorBox.innerText = "Enter a username and password.";
+        return;
+    }
+    errorBox.innerText = "";
+
     try {
-        const response = await fetch(`${API_URL}/login`, {
+        const response = await fetch(`${API_URL}/${authMode === "login" ? "login" : "signup"}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username: user, password: pass })
+            body: JSON.stringify({ username, password })
         });
-        
-        if (!response.ok) throw new Error("ACCESS DENIED: Invalid Credentials");
-        
+
+        if (!response.ok) {
+            errorBox.innerText = authErrorMessage(response.status);
+            return;
+        }
+
         const data = await response.json();
         currentApiKey = data.api_key;
         currentUserRole = data.role;
-        
-        // Hide login screen and load the comic catalog
-        document.getElementById("login-screen").style.display = "none";
-        if (AudioFX) AudioFX.playPunch(); // Optional sound effect
-        initComic(); 
-        
+        Session.save(currentApiKey, currentUserRole, data.username);
+        enterApp();
     } catch (err) {
-        errorBox.innerText = err.message;
+        errorBox.innerText = "Can't reach the server. Please try again.";
     }
+}
+
+// Guests are never stored: this key is recognised by the API itself.
+window.loginAsGuest = function() {
+    currentApiKey = "public_guest_clearance";
+    currentUserRole = "guest";
+    Session.save(currentApiKey, currentUserRole, "Civilian_Guest");
+    enterApp();
 };
 
-// Guest Login Logic
-window.loginAsGuest = function() {
-    currentApiKey = "public_guest_clearance"; 
-    currentUserRole = "guest";
-    
-    // Hide login screen and load the comic catalog
-    document.getElementById("login-screen").style.display = "none";
-    if (typeof AudioFX !== 'undefined') AudioFX.playPunch();
-    initComic();
-};
+// A real <form> so Enter submits too.
+document.getElementById("auth-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    submitAuth();
+});
+
+// Coming back from another Omniverse page (or refreshing this one) should
+// not force a fresh login if there's already a valid session this tab.
+(function restoreSession() {
+    const session = Session.load();
+    if (session) {
+        currentApiKey = session.apiKey;
+        currentUserRole = session.role;
+        enterApp();
+    }
+})();

@@ -11,10 +11,6 @@ const THREAT_OPTIONS = ["Monitoring", "Elevated", "Critical", "Neutralized"];
 let heroes = [];
 let reports = [];
 
-function fallbackImg(alias) {
-    return `https://via.placeholder.com/60x60/101012/fff?text=${encodeURIComponent((alias || "?")[0])}`;
-}
-
 function formatDate(iso) {
     try {
         return new Date(iso).toLocaleString();
@@ -42,7 +38,7 @@ async function init() {
         ]);
     } catch (err) {
         stage.innerHTML = `<div class="narrative-box splash-load" style="background:#ffcdd2; color:#b71c1c;">
-            💥 COULD NOT LOAD THE INTEL LOG: ${err.message}
+            💥 COULD NOT LOAD THE INTEL LOG: ${esc(err.message)}
         </div>`;
         return;
     }
@@ -65,7 +61,7 @@ function render() {
                         <span>HERO</span>
                         <select name="hero_id" required>
                             <option value="">-- select a dossier --</option>
-                            ${heroes.map((h) => `<option value="${h.id}">${h.alias}</option>`).join("")}
+                            ${heroes.map((h) => `<option value="${h.id}">${esc(h.alias)}</option>`).join("")}
                         </select>
                     </label>
                     <label class="admin-field">
@@ -103,15 +99,15 @@ function renderFeed() {
         const canManage = session.role === "admin" || r.agent_username === session.username;
         return `
             <article class="intel-card" id="intel-card-${r.report_id}">
-                <img src="${r.hero_image}" alt="${r.hero_alias}" onerror="this.onerror=null; this.src='${fallbackImg(r.hero_alias)}';">
+                <img src="${esc(safeUrl(r.hero_image))}" alt="${esc(r.hero_alias)}" data-fb="${esc(r.hero_alias)}" onerror="omniImgFallback(this)">
                 <div class="intel-card-body">
                     <div class="intel-card-head">
-                        <span class="intel-hero-name">${r.hero_alias}</span>
-                        <span class="threat-badge ${threatClass(r.threat_status)}">${r.threat_status}</span>
+                        <span class="intel-hero-name">${esc(r.hero_alias)}</span>
+                        <span class="threat-badge ${threatClass(r.threat_status)}">${esc(r.threat_status)}</span>
                     </div>
-                    <p class="intel-report-text">${r.report_text}</p>
+                    <p class="intel-report-text">${esc(r.report_text)}</p>
                     <div class="intel-card-meta">
-                        FILED BY <strong>${r.agent_username}</strong> &bull; ${formatDate(r.filed_at)}
+                        FILED BY <strong>${esc(r.agent_username)}</strong> &bull; ${formatDate(r.filed_at)}
                     </div>
                     ${canManage ? `
                         <div class="intel-card-actions">
@@ -167,11 +163,11 @@ function startEdit(reportId) {
         <form class="intel-edit-form">
             <label class="admin-field">
                 <span>THREAT STATUS</span>
-                <input type="text" name="threat_status" list="threat-options" value="${report.threat_status}">
+                <input type="text" name="threat_status" list="threat-options" value="${esc(report.threat_status)}">
             </label>
             <label class="admin-field admin-field-wide">
                 <span>REPORT</span>
-                <textarea name="report_text" rows="3">${report.report_text}</textarea>
+                <textarea name="report_text" rows="3">${esc(report.report_text)}</textarea>
             </label>
             <div id="edit-error-${reportId}" class="login-error"></div>
             <div class="intel-card-actions">
@@ -216,7 +212,7 @@ async function deleteReport(reportId) {
         reports = reports.filter((r) => r.report_id !== reportId);
         renderFeed();
     } catch (err) {
-        alert(`Could not delete: ${err.message}`);
+        alert(`Could not delete: ${esc(err.message)}`);
     }
 }
 

@@ -117,7 +117,7 @@ async function initComic() {
     } catch (err) {
         comicStage.innerHTML = `
             <div class="narrative-box splash-load" style="background:#ffcdd2; color:#b71c1c;">
-                💥 TRANSMISSION FAILED: ${err.message}
+                💥 TRANSMISSION FAILED: ${esc(err.message)}
             </div>
         `;
     }
@@ -146,13 +146,13 @@ window.renderPublishers = function() {
     const issueYears = { "Marvel": "1963", "DC": "1938", "Image": "1992", "Dynamite": "2006", "Valiant": "1992" };
 
     uniquePublishers.forEach((pub, idx) => {
-        const imgUrl = MULTIVERSE_ART[pub] || `https://via.placeholder.com/600x800/101012/fff?text=${pub.toUpperCase()}`;
+        const imgUrl = MULTIVERSE_ART[pub] || "";
         const price = issuePrices[pub] || "$1.00";
         const year = issueYears[pub] || "1990";
         const tilt = idx % 2 === 0 ? "-2.5deg" : "2.5deg";
 
         html += `
-            <article class="comic-cover-book" style="--cover-tilt: ${tilt};" onclick="renderFactions('${pub}')">
+            <article class="comic-cover-book" style="--cover-tilt: ${tilt};" onclick="renderFactions(${esc(JSON.stringify(pub))})">
                 <div class="comic-spine"></div>
                 <div class="comic-halftone-overlay"></div>
 
@@ -164,10 +164,10 @@ window.renderPublishers = function() {
 
                 <div class="cover-burst-badge">OPEN ISSUE!</div>
 
-                <img src="${imgUrl}" class="cover-art" alt="${pub}">
+                <img src="${esc(imgUrl)}" class="cover-art" alt="${esc(pub)}" data-fb="${esc(pub)}" onerror="omniImgFallback(this)">
 
                 <div class="cover-footer">
-                    <div class="cover-title">${pub.toUpperCase()}</div>
+                    <div class="cover-title">${esc(pub.toUpperCase())}</div>
                     <div class="cover-barcode">
                         <span>||| | |||| ||| |||| |</span>
                     </div>
@@ -194,7 +194,7 @@ window.renderFactions = function(publisher) {
     crumbPub.innerText = publisher.toUpperCase();
     crumbPub.classList.remove("hidden");
     crumbPub.classList.add("active-crumb");
-    crumbPub.setAttribute("onclick", `renderFactions('${publisher}')`);
+    crumbPub.setAttribute("onclick", `renderFactions(${esc(JSON.stringify(publisher))})`);
     document.getElementById("crumb-faction").classList.add("hidden");
 
     const publisherHeroes = rawCatalog.filter(h => h.publisher === publisher);
@@ -203,17 +203,17 @@ window.renderFactions = function(publisher) {
     let html = `
         <div class="comic-entry-banner faction-mode">
             <div class="entry-sub" style="color:var(--comic-white);">★ SELECT A SQUAD TO INITIATE PROTOCOL ★</div>
-            <h2 class="entry-headline" style="color:var(--comic-white); text-shadow: 3px 3px 0 var(--ink-black);">${publisher.toUpperCase()} FACTIONS</h2>
+            <h2 class="entry-headline" style="color:var(--comic-white); text-shadow: 3px 3px 0 var(--ink-black);">${esc(publisher.toUpperCase())} FACTIONS</h2>
         </div>
         <div class="comic-rack-grid">
     `;
 
     uniqueFactions.forEach((faction, idx) => {
-        const imgUrl = FACTION_ART[faction] || `comics/${faction.toLowerCase().replace(/\s+/g, '')}.jpg`;
+        const imgUrl = FACTION_ART[faction] || `comics/${faction.toLowerCase().replace(/[^a-z0-9]/g, '')}.jpg`;
         const tilt = idx % 2 === 0 ? "2.5deg" : "-2.5deg";
         
         html += `
-            <article class="comic-cover-book" style="--cover-tilt: ${tilt};" onclick="routeToRoster('${publisher}', '${faction.replace(/'/g, "\\'")}')">
+            <article class="comic-cover-book" style="--cover-tilt: ${tilt};" onclick="routeToRoster(${esc(JSON.stringify(publisher))}, ${esc(JSON.stringify(faction))})">
                 <div class="comic-spine"></div>
                 <div class="comic-halftone-overlay"></div>
 
@@ -225,10 +225,10 @@ window.renderFactions = function(publisher) {
 
                 <div class="cover-burst-badge" style="transform: rotate(-10deg);">INSPECT!</div>
 
-                <img src="${imgUrl}" class="cover-art" alt="${faction}" onerror="this.onerror=null; this.src='https://via.placeholder.com/400x600/101012/fff?text=${encodeURIComponent(faction.toUpperCase())}';">
+                <img src="${esc(imgUrl)}" class="cover-art" alt="${esc(faction)}" data-fb="${esc(faction)}" onerror="omniImgFallback(this)">
 
                 <div class="cover-footer">
-                    <div class="cover-title">${faction.toUpperCase()}</div>
+                    <div class="cover-title">${esc(faction.toUpperCase())}</div>
                     <div class="cover-barcode">
                         <span>||| | |||| ||| |||| |</span>
                     </div>
@@ -309,17 +309,16 @@ function renderPageMode() {
     let panelHTML = `<div class="comic-panel-layout" style="grid-template-columns: repeat(3, 1fr); grid-auto-rows: 240px;">`;
     pageHeroes.forEach((hero, index) => {
         const sfx = sfxWords[index % sfxWords.length];
-        const fallbackImg = `https://via.placeholder.com/450x350/ff2525/fffdf0?text=${encodeURIComponent(hero.alias)}`;
 
         panelHTML += `
             <article class="comic-panel" style="grid-column: span 1; grid-row: span 1;" onclick="openDossier(${hero.id})">
-                <img src="${hero.image}" alt="${hero.alias}" class="panel-img" onerror="this.onerror=null; this.src='${fallbackImg}';">
-                <div class="panel-caption-box">PANEL #${hero.id < 10 ? '0' + hero.id : hero.id} // ${hero.origin_era}</div>
-                <div class="panel-trivia"><strong>ORIGIN:</strong> ${hero.species_or_origin || "Classified"}</div>
+                <img src="${esc(safeUrl(hero.image))}" alt="${esc(hero.alias)}" class="panel-img" data-fb="${esc(hero.alias)}" onerror="omniImgFallback(this)">
+                <div class="panel-caption-box">PANEL #${hero.id < 10 ? '0' + hero.id : hero.id} // ${esc(hero.origin_era, "Classified")}</div>
+                <div class="panel-trivia"><strong>ORIGIN:</strong> ${esc(hero.species_or_origin, "Classified")}</div>
                 <div class="panel-sfx-stamp">${sfx}</div>
                 <div class="panel-speech-balloon">
-                    <div class="balloon-title">${hero.alias}</div>
-                    <div class="balloon-sub">ID: ${hero.civilian_name}</div>
+                    <div class="balloon-title">${esc(hero.alias)}</div>
+                    <div class="balloon-sub">ID: ${esc(hero.civilian_name, "Classified")}</div>
                 </div>
             </article>
         `;
@@ -333,19 +332,18 @@ function renderPageMode() {
 function renderStripMode() {
     let stripHTML = `<div class="comic-strip-layout">`;
     filteredHeroes.forEach((hero, index) => {
-        const fallbackImg = `https://via.placeholder.com/800x400/ff2525/fffdf0?text=${encodeURIComponent(hero.alias)}`;
         stripHTML += `
             <article class="strip-panel" onclick="openDossier(${hero.id})">
                 <div class="narrative-box" style="margin-bottom: 0.75rem;">
-                    <strong>RECORD #${hero.id}:</strong> ${hero.alias.toUpperCase()} &bull; ERA ${hero.origin_era}
+                    <strong>RECORD #${hero.id}:</strong> ${esc(hero.alias.toUpperCase())} &bull; ERA ${esc(hero.origin_era, "Classified")}
                 </div>
                 <div class="strip-img-frame">
-                    <img src="${hero.image}" alt="${hero.alias}" onerror="this.onerror=null; this.src='${fallbackImg}';">
+                    <img src="${esc(safeUrl(hero.image))}" alt="${esc(hero.alias)}" data-fb="${esc(hero.alias)}" onerror="omniImgFallback(this)">
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div>
-                        <h3 style="font-family:'Bangers', cursive; font-size:2.2rem; color:var(--comic-red);">${hero.alias}</h3>
-                        <p style="font-weight:700;">TRUE IDENTITY: ${hero.civilian_name}</p>
+                        <h3 style="font-family:'Bangers', cursive; font-size:2.2rem; color:var(--comic-red);">${esc(hero.alias)}</h3>
+                        <p style="font-weight:700;">TRUE IDENTITY: ${esc(hero.civilian_name, "Classified")}</p>
                     </div>
                     <button class="action-btn">INSPECT SPLASH ▶</button>
                 </div>
@@ -400,17 +398,17 @@ window.openDossier = async function(id) {
                 <h2 style="font-family:'Bangers', cursive; font-size:3.8rem; color:var(--comic-red); line-height:0.95;">DOSSIER #${hero.id < 10 ? '0' + hero.id : hero.id}</h2>
             </div>
             <div style="width:100%; height:320px; border:5px solid var(--ink-black); box-shadow:8px 8px 0px var(--ink-black); margin-bottom:1.8rem; overflow:hidden;">
-                <img src="${hero.image}" alt="${hero.alias}" style="width:100%; height:100%; object-fit:cover;" onerror="this.onerror=null; this.src='https://via.placeholder.com/650x300/ff2525/fffdf0?text=CLASSIFIED';">
+                <img src="${esc(safeUrl(hero.image))}" alt="${esc(hero.alias)}" style="width:100%; height:100%; object-fit:cover;" data-fb="CLASSIFIED" onerror="omniImgFallback(this)">
             </div>
             <div class="comic-dossier-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:1.25rem; font-size:1.2rem;">
-                <div class="narrative-box" style="background:#ffffff;"><strong>01. ALIAS:</strong> ${hero.alias}</div>
-                <div class="narrative-box" style="background:#ffffff;"><strong>02. TRUE IDENTITY:</strong> ${hero.civilian_name}</div>
-                <div class="narrative-box" style="background:#fff9c4;"><strong>03. DEBUT ERA:</strong> ${hero.origin_era}</div>
-                <div class="narrative-box" style="background:#fff9c4;"><strong>04. GENETIC ORIGIN:</strong> ${hero.species_or_origin}</div>
-                <div class="narrative-box" style="background:#e1f5fe;"><strong>05. CLASSIFICATION:</strong> ${hero.classification}</div>
-                <div class="narrative-box" style="background:#ffcdd2; color:#b71c1c;"><strong>06. THREAT LEVEL:</strong> ${hero.threat_level}</div>
-                <div class="narrative-box" style="background:#ffffff;"><strong>07. AFFILIATION:</strong> ${hero.affiliation}</div>
-                <div class="narrative-box" style="background:#ffffff;"><strong>08. BASE OF OP:</strong> ${hero.base_of_operations}</div>
+                <div class="narrative-box" style="background:#ffffff;"><strong>01. ALIAS:</strong> ${esc(hero.alias)}</div>
+                <div class="narrative-box" style="background:#ffffff;"><strong>02. TRUE IDENTITY:</strong> ${esc(hero.civilian_name, "Classified")}</div>
+                <div class="narrative-box" style="background:#fff9c4;"><strong>03. DEBUT ERA:</strong> ${esc(hero.origin_era, "Classified")}</div>
+                <div class="narrative-box" style="background:#fff9c4;"><strong>04. GENETIC ORIGIN:</strong> ${esc(hero.species_or_origin, "Classified")}</div>
+                <div class="narrative-box" style="background:#e1f5fe;"><strong>05. CLASSIFICATION:</strong> ${esc(hero.classification, "Classified")}</div>
+                <div class="narrative-box" style="background:#ffcdd2; color:#b71c1c;"><strong>06. THREAT LEVEL:</strong> ${esc(hero.threat_level, "Classified")}</div>
+                <div class="narrative-box" style="background:#ffffff;"><strong>07. AFFILIATION:</strong> ${esc(hero.affiliation, "Classified")}</div>
+                <div class="narrative-box" style="background:#ffffff;"><strong>08. BASE OF OP:</strong> ${esc(hero.base_of_operations, "Classified")}</div>
             </div>
         `;
         modal.classList.remove("hidden");

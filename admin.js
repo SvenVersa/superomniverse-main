@@ -61,10 +61,6 @@ async function loadHeroes() {
     heroes = await omniFetch("/heroes");
 }
 
-function fallbackImg(alias) {
-    return `https://via.placeholder.com/80x80/101012/fff?text=${encodeURIComponent((alias || "?")[0])}`;
-}
-
 // ==================== ROSTER TABLE ====================
 function renderTable() {
     editingId = null;
@@ -84,11 +80,11 @@ function renderTable() {
                 <tbody>
                     ${heroes.map((h) => `
                         <tr>
-                            <td><img src="${h.image}" alt="${h.alias}" class="admin-row-thumb" onerror="this.onerror=null; this.src='${fallbackImg(h.alias)}';"></td>
-                            <td>${h.alias}</td>
-                            <td>${h.publisher || ""}</td>
-                            <td>${h.affiliation || ""}</td>
-                            <td>${h.origin_era || ""}</td>
+                            <td><img src="${esc(safeUrl(h.image))}" alt="${esc(h.alias)}" class="admin-row-thumb" data-fb="${esc(h.alias)}" onerror="omniImgFallback(this)"></td>
+                            <td>${esc(h.alias)}</td>
+                            <td>${esc(h.publisher, "")}</td>
+                            <td>${esc(h.affiliation, "")}</td>
+                            <td>${esc(h.origin_era, "")}</td>
                             <td class="admin-row-actions">
                                 <button class="action-btn admin-edit-btn" data-id="${h.id}">EDIT</button>
                                 <button class="action-btn admin-delete-btn" data-id="${h.id}" style="background:var(--ink-black);">DELETE</button>
@@ -117,7 +113,7 @@ async function deleteHero(id) {
         await loadHeroes();
         renderTable();
     } catch (err) {
-        alert(`Could not delete: ${err.message}`);
+        alert(`Could not delete: ${esc(err.message)}`);
     }
 }
 
@@ -136,7 +132,7 @@ async function renderForm(id) {
                 omniFetch(`/heroes/${id}/nemeses`),
             ]);
         } catch (err) {
-            alert(`Could not load this dossier: ${err.message}`);
+            alert(`Could not load this dossier: ${esc(err.message)}`);
             return;
         }
     }
@@ -144,7 +140,7 @@ async function renderForm(id) {
     stage.innerHTML = `
         <div class="comic-entry-banner">
             <div class="entry-sub">★ ${id ? "EDITING DOSSIER #" + id : "NEW DOSSIER"} ★</div>
-            <h2 class="entry-headline">${id ? hero.alias : "UNTITLED METAHUMAN"}</h2>
+            <h2 class="entry-headline">${id ? esc(hero.alias) : "UNTITLED METAHUMAN"}</h2>
         </div>
 
         <div style="margin-bottom:1rem;">
@@ -197,7 +193,7 @@ function fieldHtml(field, value) {
                 <span>${field.label}</span>
                 <select id="${id}" name="${field.key}">
                     <option value="">-- select --</option>
-                    ${field.options.map((o) => `<option value="${o}" ${val === o ? "selected" : ""}>${o}</option>`).join("")}
+                    ${field.options.map((o) => `<option value="${esc(o)}" ${val === o ? "selected" : ""}>${esc(o)}</option>`).join("")}
                 </select>
             </label>
         `;
@@ -206,18 +202,18 @@ function fieldHtml(field, value) {
         return `
             <label class="admin-field admin-field-wide">
                 <span>${field.label}</span>
-                <textarea id="${id}" name="${field.key}" rows="3">${val}</textarea>
+                <textarea id="${id}" name="${field.key}" rows="3">${esc(val)}</textarea>
             </label>
         `;
     }
     const listAttr = field.list ? `list="${id}-list"` : "";
     const datalist = field.list
-        ? `<datalist id="${id}-list">${field.list.map((o) => `<option value="${o}">`).join("")}</datalist>`
+        ? `<datalist id="${id}-list">${field.list.map((o) => `<option value="${esc(o)}">`).join("")}</datalist>`
         : "";
     return `
         <label class="admin-field">
             <span>${field.label}</span>
-            <input type="text" id="${id}" name="${field.key}" value="${String(val).replace(/"/g, "&quot;")}" ${listAttr}>
+            <input type="text" id="${id}" name="${field.key}" value="${esc(val)}" ${listAttr}>
             ${datalist}
         </label>
     `;
@@ -313,7 +309,7 @@ function nemesesFormHtml(heroId, nemeses) {
         <div class="admin-nemesis-list">
             ${nemeses.length === 0 ? '<p class="admin-disabled-note">No nemeses recorded yet.</p>' : nemeses.map((n) => `
                 <div class="admin-nemesis-row">
-                    <span><strong>${n.villain_alias}</strong>${n.first_encounter_issue ? ` &mdash; ${n.first_encounter_issue}` : ""}</span>
+                    <span><strong>${esc(n.villain_alias)}</strong>${n.first_encounter_issue ? ` &mdash; ${esc(n.first_encounter_issue)}` : ""}</span>
                     <button type="button" class="action-btn admin-remove-nemesis-btn" data-villain-id="${n.villain_id}" style="background:var(--ink-black);">REMOVE</button>
                 </div>
             `).join("")}
@@ -323,7 +319,7 @@ function nemesesFormHtml(heroId, nemeses) {
                 <span>ADD NEMESIS</span>
                 <select name="villain_id" required>
                     <option value="">-- select a dossier --</option>
-                    ${otherHeroes.map((h) => `<option value="${h.id}">${h.alias} (${h.publisher || "?"})</option>`).join("")}
+                    ${otherHeroes.map((h) => `<option value="${h.id}">${esc(h.alias)} (${esc(h.publisher, "?")})</option>`).join("")}
                 </select>
             </label>
             <label class="admin-field">
@@ -345,7 +341,7 @@ function wireNemesisControls(heroId) {
                 await omniFetch(`/heroes/${heroId}/nemeses/${btn.dataset.villainId}`, { method: "DELETE" });
                 renderForm(heroId);
             } catch (err) {
-                alert(`Could not remove nemesis: ${err.message}`);
+                alert(`Could not remove nemesis: ${esc(err.message)}`);
             }
         });
     });

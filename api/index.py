@@ -1,9 +1,12 @@
+import hashlib
+import hmac
 import logging
 import os
 import re
 import secrets
 import threading
 import time
+from collections import defaultdict, deque
 from typing import Optional
 
 import psycopg2
@@ -11,7 +14,7 @@ from psycopg2 import errors as pg_errors
 from psycopg2 import pool as pg_pool
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
@@ -23,13 +26,30 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Omniverse API", version="1.1.0")
 
+# CORS: auth is a header (x-api-key), never a cookie, so credentials are NOT
+# needed. In production the frontend and API share an origin (Vercel), so no
+# cross-origin access is required at all. Extra origins can be added with
+# ALLOWED_ORIGINS="https://a.example,https://b.example". Localhost on any port
+# is allowed so local development keeps working.
+_extra_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows your frontend to connect locally
-    allow_credentials=True,
-    allow_methods=["*"],  # Allows GET, POST, PUT, DELETE, and OPTIONS
-    allow_headers=["*"],
+    allow_origins=_extra_origins,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["x-api-key", "content-type"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Cache-Control", "no-store")
+    return response
 
 # ---------------------------------------------------------
 # DATA ACCESS LAYER
@@ -47,6 +67,8 @@ _pool_lock = threading.Lock()
 
 def get_pool():
     global _pool
+    if not os.getenv("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL is not set")
     if _pool is None:
         with _pool_lock:
             if _pool is None:
@@ -81,6 +103,7 @@ def run_query(query, params=None, fetch=None, commit=False):
             logger.exception("Database connection error")
             raise HTTPException(status_code=503, detail="Database connection failed. Please try again later.")
 
+        committing = False
         try:
             cursor = conn.cursor()
             try:
@@ -91,15 +114,18 @@ def run_query(query, params=None, fetch=None, commit=False):
                 elif fetch == "all":
                     result = cursor.fetchall()
                 if commit:
+                    committing = True
                     conn.commit()
             finally:
                 cursor.close()
             get_pool().putconn(conn)
             return result
         except (psycopg2.OperationalError, psycopg2.InterfaceError):
-            # Stale/dropped connection: throw it away and try again once.
+            # Stale/dropped connection: throw it away. Retry once, but NEVER
+            # if the failure happened during COMMIT: the write may already be
+            # saved, and retrying would duplicate it (double INSERT).
             get_pool().putconn(conn, close=True)
-            if attempt == 1:
+            if attempt == 1 or committing:
                 raise
         except Exception:
             try:
@@ -127,18 +153,29 @@ def db_get_hero_by_id(hero_id: int):
     return run_query("SELECT * FROM comic_archive WHERE id = %s;", (hero_id,), fetch="one")
 
 
+def _like(term: str) -> str:
+    # Escape LIKE wildcards so a user's % or _ is matched literally.
+    return "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+
 def db_search_heroes(q: Optional[str], publisher: Optional[str], alignment: Optional[str]):
-    query = "SELECT * FROM comic_archive WHERE 1=1"
+    # Same public column list as the catalog: search must never expose the
+    # classified dossier fields that /api/heroes/{id} reserves for registered agents.
+    query = (
+        "SELECT id, alias, publisher, alignment, affiliation, origin_era, image, civilian_name "
+        "FROM comic_archive WHERE 1=1"
+    )
     params = []
     if q:
         query += " AND (alias ILIKE %s OR civilian_name ILIKE %s)"
-        params.extend([f"%{q}%", f"%{q}%"])
+        params.extend([_like(q), _like(q)])
     if publisher:
         query += " AND publisher ILIKE %s"
-        params.append(f"%{publisher}%")
+        params.append(_like(publisher))
     if alignment:
         query += " AND alignment ILIKE %s"
-        params.append(f"%{alignment}%")
+        params.append(_like(alignment))
+    query += " ORDER BY id ASC LIMIT 200"
     return run_query(query, tuple(params), fetch="all")
 
 
@@ -174,28 +211,80 @@ def db_get_user_by_api_key(api_key: str):
     )
 
 
+# --- Password hashing (scrypt, Python stdlib: no new dependency) ----------
+# Stored format: scrypt$<N>$<r>$<p>$<salt hex>$<hash hex>
+# Legacy plaintext rows are still accepted ONCE and are re-hashed on that
+# successful login, so existing users migrate transparently.
+_SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2 ** 14, 8, 1
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode(), salt=salt, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P)
+    return f"scrypt${_SCRYPT_N}${_SCRYPT_R}${_SCRYPT_P}${salt.hex()}${digest.hex()}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    if stored and stored.startswith("scrypt$"):
+        try:
+            _, n, r, p, salt_hex, hash_hex = stored.split("$")
+            digest = hashlib.scrypt(
+                password.encode(), salt=bytes.fromhex(salt_hex), n=int(n), r=int(r), p=int(p)
+            )
+            return hmac.compare_digest(digest.hex(), hash_hex)
+        except Exception:
+            return False
+    # Legacy plaintext row (constant-time compare).
+    return hmac.compare_digest((stored or "").encode(), password.encode())
+
+
+_schema_ready = False
+
+
+def ensure_security_schema():
+    """Hashes are longer than the old varchar(50) password column. Widen it once
+    (idempotent, instant on Postgres) before any hash is written."""
+    global _schema_ready
+    if _schema_ready:
+        return
+    run_query("ALTER TABLE users ALTER COLUMN password TYPE text;", commit=True)
+    _schema_ready = True
+
+
 def db_create_user(username: str, password: str):
     # Role is always 'user' here, never taken from the request, so nobody can
     # sign themselves up as an admin. Admins are created directly in the database.
+    ensure_security_schema()
     api_key = secrets.token_urlsafe(32)
     return run_query(
         "INSERT INTO users (username, password, api_key, role) "
         "VALUES (%s, %s, %s, 'user') RETURNING username, api_key, role;",
-        (username, password, api_key),
+        (username, hash_password(password), api_key),
         fetch="one",
         commit=True,
     )
 
 
 def db_get_user_by_credentials(username: str, password: str):
-    # NOTE: passwords are compared in plaintext here, by project decision.
-    # If you revisit this later, the standard fix is to store a bcrypt hash
-    # in `password` and compare with bcrypt.checkpw() instead of SQL equality.
-    return run_query(
-        "SELECT username, role, api_key FROM users WHERE username = %s AND password = %s;",
-        (username, password),
+    row = run_query(
+        "SELECT username, role, api_key, password FROM users WHERE username = %s;",
+        (username,),
         fetch="one",
     )
+    if not row:
+        # Burn comparable time so unknown usernames can't be told apart by speed.
+        verify_password(password, "scrypt$16384$8$1$" + "00" * 16 + "$" + "00" * 64)
+        return None
+    if not verify_password(password, row["password"]):
+        return None
+    if not row["password"].startswith("scrypt$"):
+        try:  # upgrade legacy plaintext -> hash on successful login
+            ensure_security_schema()
+            run_query("UPDATE users SET password = %s WHERE username = %s;",
+                      (hash_password(password), username), commit=True)
+        except Exception:
+            logger.exception("Could not upgrade legacy password hash for %s", username)
+    return {"username": row["username"], "role": row["role"], "api_key": row["api_key"]}
 
 
 # ---------------------------------------------------------
@@ -431,9 +520,9 @@ class SignupRequest(BaseModel):
 
 # Short-lived cache of API-key lookups so every click doesn't pay for an extra
 # database round-trip just to re-check who you are. A role change or removed
-# account can take up to AUTH_CACHE_TTL seconds to show up.
+# account can take up to AUTH_CACHE_TTL seconds (per server instance) to show up.
 _AUTH_CACHE = {}
-AUTH_CACHE_TTL = 60
+AUTH_CACHE_TTL = 15
 
 
 # 1. Base Security (Allows Admins, Users, and Guests)
@@ -480,8 +569,39 @@ def require_admin(user: dict = Depends(get_current_user)):
     return user
 
 
+# In-memory sliding-window limiter. Per server instance (serverless instances
+# don't share memory), so it blunts casual brute force but is not a substitute
+# for an edge/WAF limit on a large deployment.
+_RATE = defaultdict(deque)
+_RATE_LOCK = threading.Lock()
+
+
+def client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for")
+    return fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "unknown")
+
+
+def rate_limit(bucket: str, limit: int, window_seconds: int):
+    now = time.time()
+    with _RATE_LOCK:
+        hits = _RATE[bucket]
+        while hits and now - hits[0] > window_seconds:
+            hits.popleft()
+        if len(hits) >= limit:
+            retry = int(window_seconds - (now - hits[0])) + 1
+            raise HTTPException(status_code=429, detail=f"Too many attempts. Try again in {retry}s.",
+                                headers={"Retry-After": str(retry)})
+        hits.append(now)
+        if len(_RATE) > 5000:  # bound memory
+            for k in [k for k, v in _RATE.items() if not v][:1000]:
+                _RATE.pop(k, None)
+
+
 @app.post("/api/login")
-def login(req: LoginRequest):
+def login(req: LoginRequest, request: Request):
+    ip = client_ip(request)
+    rate_limit(f"login-ip:{ip}", 30, 900)
+    rate_limit(f"login-user:{ip}:{req.username.lower()}", 8, 900)
     try:
         user = db_get_user_by_credentials(req.username, req.password)
     except Exception:
@@ -495,7 +615,8 @@ def login(req: LoginRequest):
 
 
 @app.post("/api/signup", status_code=201)
-def signup(req: SignupRequest):
+def signup(req: SignupRequest, request: Request):
+    rate_limit(f"signup-ip:{client_ip(request)}", 5, 3600)
     try:
         user = db_create_user(req.username, req.password)
     except pg_errors.UniqueViolation:
@@ -511,6 +632,9 @@ def signup(req: SignupRequest):
 # ---------------------------------------------------------
 # SECURE PYDANTIC VALIDATION MODELS
 # ---------------------------------------------------------
+
+_MARKUP_RE = re.compile(r'<\s*/?\s*[a-zA-Z!?]|javascript\s*:|on\w+\s*=', re.IGNORECASE)
+
 
 class HeroCreate(BaseModel):
     alias: str = Field(..., min_length=1, max_length=100, description="Hero/Villain alias")
@@ -535,14 +659,23 @@ class HeroCreate(BaseModel):
     tactical_profile: Optional[str] = Field(None, max_length=500)
     primary_adversary: Optional[str] = Field(None, max_length=255)
 
-    # Security Sanitizer: Strips trailing spaces and prevents basic XSS injection
+    # Defence in depth only: the frontend escapes all output (esc() in shared.js),
+    # which is the real XSS protection. Here we trim and refuse anything that
+    # looks like markup, so hostile HTML never gets stored in the first place.
     @field_validator('*', mode='before')
     def sanitize_strings(cls, value):
         if isinstance(value, str):
             cleaned = value.strip()
-            if re.search(r'<script.*?>.*?</script>', cleaned, re.IGNORECASE):
-                raise ValueError("Invalid characters or script tags detected.")
+            if _MARKUP_RE.search(cleaned):
+                raise ValueError("HTML/markup is not allowed in dossier fields.")
             return cleaned
+        return value
+
+    @field_validator('image')
+    def validate_image(cls, value):
+        # Only http(s) URLs or plain relative paths (e.g. comics/x.jpg). Blocks javascript:/data: URIs.
+        if value and not re.match(r'^(https?://[^\s"\'<>]+|[A-Za-z0-9_./-]+)$', value):
+            raise ValueError("Image must be an http(s) URL or a relative file path.")
         return value
 
     # Publisher whitelist enforcement
@@ -592,26 +725,43 @@ class DangerRoomRequest(BaseModel):
 
 class IntelReportCreate(BaseModel):
     hero_id: int
-    threat_status: str = Field("Monitoring", max_length=50)
+    threat_status: str = Field("Monitoring", min_length=1, max_length=50)
     report_text: str = Field(..., min_length=1, max_length=2000)
 
     @field_validator('report_text', 'threat_status', mode='before')
     def strip_text(cls, value):
         return value.strip() if isinstance(value, str) else value
 
+    @field_validator('report_text', 'threat_status')
+    def no_markup(cls, value):
+        if _MARKUP_RE.search(value):
+            raise ValueError("HTML/markup is not allowed in intel reports.")
+        return value
+
 
 class IntelReportUpdate(BaseModel):
-    threat_status: Optional[str] = Field(None, max_length=50)
+    threat_status: Optional[str] = Field(None, min_length=1, max_length=50)
     report_text: Optional[str] = Field(None, min_length=1, max_length=2000)
 
     @field_validator('report_text', 'threat_status', mode='before')
     def strip_text(cls, value):
         return value.strip() if isinstance(value, str) else value
 
+    @field_validator('report_text', 'threat_status')
+    def no_markup(cls, value):
+        if value is not None and _MARKUP_RE.search(value):
+            raise ValueError("HTML/markup is not allowed in intel reports.")
+        return value
+
 
 # ---------------------------------------------------------
 # NEON DATABASE CRUD ENDPOINTS
 # ---------------------------------------------------------
+
+@app.get("/api/health")
+def api_health():
+    return {"status": "online"}
+
 
 @app.get("/")
 def root():
@@ -688,6 +838,8 @@ def update_hero(hero_id: int, hero: HeroUpdate):
     fields = hero.model_dump(exclude_unset=True)
     if not fields:
         raise HTTPException(status_code=400, detail="No fields provided for update")
+    if "alias" in fields and fields["alias"] is None:
+        raise HTTPException(status_code=422, detail="Alias cannot be null.")
 
     try:
         found = db_update_hero(hero_id, fields)

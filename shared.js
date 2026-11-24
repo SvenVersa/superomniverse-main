@@ -131,3 +131,39 @@ function renderClearanceDenied(message) {
         </div>
     `;
 }
+// ====================================================================
+// OUTPUT ESCAPING — every value that came from the API or the user MUST go
+// through esc() before it is placed into an HTML template string.
+// Handles text AND attribute contexts (quotes are escaped too).
+// Pass a fallback to show when the value is null/undefined/empty.
+// ====================================================================
+function esc(value, fallback = "") {
+    if (value === null || value === undefined || value === "") value = fallback;
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;")
+        .replace(/`/g, "&#96;");
+}
+
+// Local SVG placeholder (the old via.placeholder.com service is defunct, and
+// building inline onerror strings from data was itself an injection vector).
+// Usage in markup:  <img ... data-fb="${esc(label)}" onerror="omniImgFallback(this)">
+function omniImgFallback(img) {
+    img.onerror = null;
+    const label = (img.dataset.fb || "?").toUpperCase().slice(0, 24);
+    const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="450" height="350" viewBox="0 0 450 350">` +
+        `<rect width="100%" height="100%" fill="#ff2525"/>` +
+        `<text x="50%" y="50%" fill="#fffdf0" font-family="Impact,sans-serif" font-size="32" ` +
+        `text-anchor="middle" dominant-baseline="middle">${label.replace(/[&<>"']/g, "")}</text></svg>`;
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+
+// Only allow http(s) / relative image URLs from the database (blocks javascript:, data: html).
+function safeUrl(url) {
+    const u = String(url || "").trim();
+    return /^(https?:\/\/|\/|[A-Za-z0-9_.\-\/]+$)/i.test(u) ? u : "";
+}

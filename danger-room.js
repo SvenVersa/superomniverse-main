@@ -21,10 +21,6 @@ let roster = []; // [{hero, nemeses:[{villain, first_encounter_issue}]}]
 let pickedHeroId = null;
 let pickedVillainId = null;
 
-function fallbackImg(alias) {
-    return `https://via.placeholder.com/300x300/ff2525/fffdf0?text=${encodeURIComponent(alias)}`;
-}
-
 async function init() {
     if (!session) return;
     document.getElementById("omni-nav-container").innerHTML = renderOmniNav("danger-room");
@@ -33,7 +29,7 @@ async function init() {
         roster = await omniFetch("/game/danger-room-roster");
     } catch (err) {
         stage.innerHTML = `<div class="narrative-box splash-load" style="background:#ffcdd2; color:#b71c1c;">
-            💥 COULD NOT LOAD NEMESIS FILES: ${err.message}
+            💥 COULD NOT LOAD NEMESIS FILES: ${esc(err.message)}
         </div>`;
         return;
     }
@@ -67,13 +63,13 @@ function renderPickerStage() {
         <div class="matchup-arena">
             <div class="matchup-side">
                 <select id="pick-hero" class="matchup-select">
-                    ${roster.map((r) => `<option value="${r.hero.id}" ${r.hero.id === pickedHeroId ? "selected" : ""}>${r.hero.alias} (${r.hero.publisher})</option>`).join("")}
+                    ${roster.map((r) => `<option value="${r.hero.id}" ${r.hero.id === pickedHeroId ? "selected" : ""}>${esc(r.hero.alias)} (${esc(r.hero.publisher)})</option>`).join("")}
                 </select>
                 <div class="matchup-fighter-card">
                     <div class="matchup-slot-label">HERO</div>
-                    <img src="${entry.hero.image}" alt="${entry.hero.alias}" onerror="this.onerror=null; this.src='${fallbackImg(entry.hero.alias)}';">
-                    <div class="matchup-fighter-name">${entry.hero.alias}</div>
-                    <div class="matchup-fighter-sub">${entry.hero.publisher}</div>
+                    <img src="${esc(safeUrl(entry.hero.image))}" alt="${esc(entry.hero.alias)}" data-fb="${esc(entry.hero.alias)}" onerror="omniImgFallback(this)">
+                    <div class="matchup-fighter-name">${esc(entry.hero.alias)}</div>
+                    <div class="matchup-fighter-sub">${esc(entry.hero.publisher)}</div>
                 </div>
             </div>
 
@@ -81,7 +77,7 @@ function renderPickerStage() {
 
             <div class="matchup-side">
                 <select id="pick-villain" class="matchup-select">
-                    ${entry.nemeses.map((n) => `<option value="${n.villain.id}" ${n.villain.id === pickedVillainId ? "selected" : ""}>${n.villain.alias} (${n.villain.publisher})</option>`).join("")}
+                    ${entry.nemeses.map((n) => `<option value="${n.villain.id}" ${n.villain.id === pickedVillainId ? "selected" : ""}>${esc(n.villain.alias)} (${esc(n.villain.publisher)})</option>`).join("")}
                 </select>
                 <div class="matchup-fighter-card" id="villain-card"></div>
             </div>
@@ -113,13 +109,13 @@ function renderVillainCardAndNote(entry) {
     const nemesis = entry.nemeses.find((n) => n.villain.id === pickedVillainId);
     document.getElementById("villain-card").innerHTML = `
         <div class="matchup-slot-label">NEMESIS</div>
-        <img src="${nemesis.villain.image}" alt="${nemesis.villain.alias}" onerror="this.onerror=null; this.src='${fallbackImg(nemesis.villain.alias)}';">
-        <div class="matchup-fighter-name">${nemesis.villain.alias}</div>
-        <div class="matchup-fighter-sub">${nemesis.villain.publisher}</div>
+        <img src="${esc(safeUrl(nemesis.villain.image))}" alt="${esc(nemesis.villain.alias)}" data-fb="${esc(nemesis.villain.alias)}" onerror="omniImgFallback(this)">
+        <div class="matchup-fighter-name">${esc(nemesis.villain.alias)}</div>
+        <div class="matchup-fighter-sub">${esc(nemesis.villain.publisher)}</div>
     `;
     const note = document.getElementById("encounter-note");
     note.innerText = nemesis.first_encounter_issue
-        ? `FIRST ENCOUNTER ON FILE: ${nemesis.first_encounter_issue}`
+        ? `FIRST ENCOUNTER ON FILE: ${esc(nemesis.first_encounter_issue)}`
         : "No first-encounter issue on file for this pairing.";
 }
 
@@ -174,8 +170,8 @@ function renderResult(result) {
             <div class="matchup-side">
                 <div class="matchup-fighter-card ${heroWins ? "winner-glow" : ""}">
                     ${heroWins ? '<div class="winner-stamp">WINNER!</div>' : ""}
-                    <img src="${hero.image}" alt="${hero.alias}" onerror="this.onerror=null; this.src='${fallbackImg(hero.alias)}';">
-                    <div class="matchup-fighter-name">${hero.alias}</div>
+                    <img src="${esc(safeUrl(hero.image))}" alt="${esc(hero.alias)}" data-fb="${esc(hero.alias)}" onerror="omniImgFallback(this)">
+                    <div class="matchup-fighter-name">${esc(hero.alias)}</div>
                     <div class="matchup-fighter-sub">TOTAL POWER: ${hero.total} / 42</div>
                 </div>
             </div>
@@ -183,8 +179,8 @@ function renderResult(result) {
             <div class="matchup-side">
                 <div class="matchup-fighter-card ${villainWins ? "winner-glow" : ""}">
                     ${villainWins ? '<div class="winner-stamp">WINNER!</div>' : ""}
-                    <img src="${villain.image}" alt="${villain.alias}" onerror="this.onerror=null; this.src='${fallbackImg(villain.alias)}';">
-                    <div class="matchup-fighter-name">${villain.alias}</div>
+                    <img src="${esc(safeUrl(villain.image))}" alt="${esc(villain.alias)}" data-fb="${esc(villain.alias)}" onerror="omniImgFallback(this)">
+                    <div class="matchup-fighter-name">${esc(villain.alias)}</div>
                     <div class="matchup-fighter-sub">TOTAL POWER: ${villain.total} / 42</div>
                 </div>
             </div>

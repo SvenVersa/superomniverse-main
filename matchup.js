@@ -16,10 +16,6 @@ let roster = [];
 let pickA = null;
 let pickB = null;
 
-function fallbackImg(alias) {
-    return `https://via.placeholder.com/300x300/ff2525/fffdf0?text=${encodeURIComponent(alias)}`;
-}
-
 async function init() {
     if (!session) return;
     document.getElementById("omni-nav-container").innerHTML = renderOmniNav("matchup");
@@ -28,7 +24,7 @@ async function init() {
         roster = await omniFetch("/game/matchup-roster");
     } catch (err) {
         stage.innerHTML = `<div class="narrative-box splash-load" style="background:#ffcdd2; color:#b71c1c;">
-            💥 COULD NOT LOAD THE ROSTER: ${err.message}
+            💥 COULD NOT LOAD THE ROSTER: ${esc(err.message)}
         </div>`;
         return;
     }
@@ -47,7 +43,7 @@ async function init() {
 function optionsHtml(excludeId) {
     return roster
         .filter((f) => f.id !== excludeId)
-        .map((f) => `<option value="${f.id}">${f.alias} (${f.publisher})</option>`)
+        .map((f) => `<option value="${f.id}">${esc(f.alias)} (${esc(f.publisher)})</option>`)
         .join("");
 }
 
@@ -67,9 +63,9 @@ function fighterCardHtml(fighter, slotLabel) {
     return `
         <div class="matchup-fighter-card">
             <div class="matchup-slot-label">${slotLabel}</div>
-            <img src="${fighter.image}" alt="${fighter.alias}" onerror="this.onerror=null; this.src='${fallbackImg(fighter.alias)}';">
-            <div class="matchup-fighter-name">${fighter.alias}</div>
-            <div class="matchup-fighter-sub">${fighter.publisher} &bull; ${fighter.alignment || "Unaligned"}</div>
+            <img src="${esc(safeUrl(fighter.image))}" alt="${esc(fighter.alias)}" data-fb="${esc(fighter.alias)}" onerror="omniImgFallback(this)">
+            <div class="matchup-fighter-name">${esc(fighter.alias)}</div>
+            <div class="matchup-fighter-sub">${esc(fighter.publisher)} &bull; ${esc(fighter.alignment, "Unaligned")}</div>
         </div>
     `;
 }
@@ -177,8 +173,8 @@ function renderResult(result) {
             <div class="matchup-side">
                 <div class="matchup-fighter-card ${aIsWinner ? "winner-glow" : ""}">
                     ${aIsWinner ? '<div class="winner-stamp">WINNER!</div>' : ""}
-                    <img src="${a.image}" alt="${a.alias}" onerror="this.onerror=null; this.src='${fallbackImg(a.alias)}';">
-                    <div class="matchup-fighter-name">${a.alias}</div>
+                    <img src="${esc(safeUrl(a.image))}" alt="${esc(a.alias)}" data-fb="${esc(a.alias)}" onerror="omniImgFallback(this)">
+                    <div class="matchup-fighter-name">${esc(a.alias)}</div>
                     <div class="matchup-fighter-sub">TOTAL POWER: ${a.total} / 42</div>
                 </div>
             </div>
@@ -186,8 +182,8 @@ function renderResult(result) {
             <div class="matchup-side">
                 <div class="matchup-fighter-card ${bIsWinner ? "winner-glow" : ""}">
                     ${bIsWinner ? '<div class="winner-stamp">WINNER!</div>' : ""}
-                    <img src="${b.image}" alt="${b.alias}" onerror="this.onerror=null; this.src='${fallbackImg(b.alias)}';">
-                    <div class="matchup-fighter-name">${b.alias}</div>
+                    <img src="${esc(safeUrl(b.image))}" alt="${esc(b.alias)}" data-fb="${esc(b.alias)}" onerror="omniImgFallback(this)">
+                    <div class="matchup-fighter-name">${esc(b.alias)}</div>
                     <div class="matchup-fighter-sub">TOTAL POWER: ${b.total} / 42</div>
                 </div>
             </div>

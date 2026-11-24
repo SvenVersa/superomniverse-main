@@ -3,7 +3,6 @@
 
 const comicStage = document.getElementById("comic-stage");
 const searchInput = document.getElementById("search-input");
-const resetBtn = document.getElementById("reset-btn");
 const prevPageBtn = document.getElementById("prev-page");
 const nextPageBtn = document.getElementById("next-page");
 const pageIndicator = document.getElementById("page-indicator");
@@ -20,6 +19,7 @@ let filteredHeroes = [];
 let currentPage = 1;
 const HEROES_PER_PAGE = 15; 
 let isStripMode = false;
+let dossierCache = {};
 let currentApiKey = null;
 let currentUserRole = null;
 
@@ -371,7 +371,7 @@ window.openDossier = async function(id) {
                     Civilian Guests do not have clearance to view full Metahuman psychological and tactical profiles. 
                     <br><br>Please log in with an Agent Account.
                 </p>
-                <button onclick="location.reload()" class="action-btn" style="margin-top: 2rem;">RETURN TO LOGIN TERMINAL</button>
+                <button onclick="Session.logout()" class="action-btn" style="margin-top: 2rem;">RETURN TO LOGIN TERMINAL</button>
             </div>
         `;
         modal.classList.remove("hidden");
@@ -379,13 +379,20 @@ window.openDossier = async function(id) {
     }
 
     try {
-        // Registered Users & Admins fetch the full secure dossier data from backend
-        const response = await fetch(`${API_URL}/heroes/${id}`, {
-            headers: { "x-api-key": currentApiKey }
-        });
-        
-        if (!response.ok) throw new Error("Clearance rejected by server.");
-        const hero = await response.json();
+        // Registered Users & Admins fetch the full secure dossier data from backend.
+        // Dossiers already opened this session are cached, so reopening is instant;
+        // a first open shows the modal right away instead of freezing the page.
+        let hero = dossierCache[id];
+        if (!hero) {
+            modalBody.innerHTML = `<div style="text-align:center; padding:3rem;"><h2 style="font-family:'Bangers', cursive; font-size:2.5rem; color:var(--comic-red);">UNSEALING DOSSIER...</h2></div>`;
+            modal.classList.remove("hidden");
+            const response = await fetch(`${API_URL}/heroes/${id}`, {
+                headers: { "x-api-key": currentApiKey }
+            });
+            if (!response.ok) throw new Error("Clearance rejected by server.");
+            hero = await response.json();
+            dossierCache[id] = hero;
+        }
 
         modalBody.innerHTML = `
             <div style="border-bottom: 4px solid var(--ink-black); padding-bottom: 1rem; margin-bottom: 1.5rem; position: relative;">
@@ -409,6 +416,8 @@ window.openDossier = async function(id) {
         modal.classList.remove("hidden");
     } catch (err) {
         console.error(err);
+        modalBody.innerHTML = `<div style="text-align:center; padding:3rem;"><h2 style="font-family:'Bangers', cursive; font-size:2.5rem; color:var(--comic-red);">COULD NOT OPEN DOSSIER</h2><p style="font-weight:bold;">Please try again.</p></div>`;
+        modal.classList.remove("hidden");
     }
 };
 
@@ -459,16 +468,6 @@ tabBtns.forEach(tab => {
         currentPage = 1;
         renderReader();
     });
-});
-
-resetBtn.addEventListener("click", () => {
-    searchInput.value = "";
-    tabBtns.forEach(t => t.classList.remove("active"));
-    document.querySelector('.tab-btn[data-key="ALL"]').classList.add("active");
-    
-    filteredHeroes = rawCatalog.filter(h => h.publisher === activePublisher && h.affiliation === activeFaction);
-    currentPage = 1;
-    renderReader();
 });
 
 // Modal Closers - Free scrolling restored

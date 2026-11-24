@@ -2,10 +2,13 @@ import logging
 import os
 import re
 import secrets
+import threading
+import time
 from typing import Optional
 
 import psycopg2
 from psycopg2 import errors as pg_errors
+from psycopg2 import pool as pg_pool
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -34,21 +37,31 @@ app.add_middleware(
 # focused on request/response shaping and permission checks.
 # ---------------------------------------------------------
 
-def get_db_connection():
-    try:
-        conn = psycopg2.connect(
-            os.getenv("DATABASE_URL"),
-            cursor_factory=RealDictCursor
-        )
-        return conn
-    except Exception:
-        logger.exception("Database connection error")
-        raise HTTPException(status_code=503, detail="Database connection failed. Please try again later.")
+# One small connection pool per server process. Opening a fresh connection to
+# Neon on every query (the old approach) costs a couple of seconds of network
+# round-trips each time, and a single click used to open two of them. A warm
+# server now reuses connections instead.
+_pool = None
+_pool_lock = threading.Lock()
+
+
+def get_pool():
+    global _pool
+    if _pool is None:
+        with _pool_lock:
+            if _pool is None:
+                _pool = pg_pool.ThreadedConnectionPool(
+                    1, 10,
+                    os.getenv("DATABASE_URL"),
+                    cursor_factory=RealDictCursor,
+                    connect_timeout=10,
+                )
+    return _pool
 
 
 def run_query(query, params=None, fetch=None, commit=False):
     """
-    Runs one SQL statement against a fresh connection.
+    Runs one SQL statement on a pooled connection.
 
     fetch: None | "one" | "all"
     commit: whether to commit (needed for INSERT/UPDATE/DELETE)
@@ -56,25 +69,45 @@ def run_query(query, params=None, fetch=None, commit=False):
     Raises the original psycopg2 exception on failure (including
     UniqueViolation) so the calling endpoint can decide the right
     HTTP status code. Never leaks raw DB text to the caller itself.
+
+    Neon closes idle connections, so a pooled connection can be dead by the
+    time it is reused. If that happens we discard it and retry once on a
+    fresh one.
     """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute(query, params or ())
-        result = None
-        if fetch == "one":
-            result = cursor.fetchone()
-        elif fetch == "all":
-            result = cursor.fetchall()
-        if commit:
-            conn.commit()
-        return result
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        cursor.close()
-        conn.close()
+    for attempt in range(2):
+        try:
+            conn = get_pool().getconn()
+        except Exception:
+            logger.exception("Database connection error")
+            raise HTTPException(status_code=503, detail="Database connection failed. Please try again later.")
+
+        try:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(query, params or ())
+                result = None
+                if fetch == "one":
+                    result = cursor.fetchone()
+                elif fetch == "all":
+                    result = cursor.fetchall()
+                if commit:
+                    conn.commit()
+            finally:
+                cursor.close()
+            get_pool().putconn(conn)
+            return result
+        except (psycopg2.OperationalError, psycopg2.InterfaceError):
+            # Stale/dropped connection: throw it away and try again once.
+            get_pool().putconn(conn, close=True)
+            if attempt == 1:
+                raise
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            get_pool().putconn(conn)
+            raise
 
 
 def db_get_comic_count():
@@ -84,7 +117,7 @@ def db_get_comic_count():
 
 def db_get_all_heroes():
     return run_query(
-        "SELECT id, alias, publisher, affiliation, origin_era, image, civilian_name "
+        "SELECT id, alias, publisher, alignment, affiliation, origin_era, image, civilian_name "
         "FROM comic_archive ORDER BY id ASC;",
         fetch="all",
     )
@@ -396,6 +429,13 @@ class SignupRequest(BaseModel):
     password: str = Field(..., min_length=6, max_length=50)
 
 
+# Short-lived cache of API-key lookups so every click doesn't pay for an extra
+# database round-trip just to re-check who you are. A role change or removed
+# account can take up to AUTH_CACHE_TTL seconds to show up.
+_AUTH_CACHE = {}
+AUTH_CACHE_TTL = 60
+
+
 # 1. Base Security (Allows Admins, Users, and Guests)
 def get_current_user(x_api_key: str = Header(None)):
     if not x_api_key:
@@ -406,6 +446,10 @@ def get_current_user(x_api_key: str = Header(None)):
     if x_api_key == "public_guest_clearance":
         return {"username": "Civilian_Guest", "role": "guest"}
 
+    cached = _AUTH_CACHE.get(x_api_key)
+    if cached and time.time() - cached[0] < AUTH_CACHE_TTL:
+        return cached[1]
+
     try:
         user = db_get_user_by_api_key(x_api_key)
     except Exception:
@@ -414,6 +458,11 @@ def get_current_user(x_api_key: str = Header(None)):
 
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized: Invalid Clearance Key")
+
+    if len(_AUTH_CACHE) > 500:
+        _AUTH_CACHE.clear()
+    user = dict(user)
+    _AUTH_CACHE[x_api_key] = (time.time(), user)
     return user
 
 

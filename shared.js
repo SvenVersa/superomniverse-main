@@ -112,7 +112,7 @@ function renderOmniNav(active) {
             </div>
             <div class="omni-nav-session">
                 <span class="omni-nav-role omni-role-${session.role}">${session.username ? session.username.toUpperCase() + " • " : ""}${session.role.toUpperCase()}</span>
-                <button type="button" class="omni-nav-btn omni-nav-logout" onclick="Session.logout()">END SESSION</button>
+                <button type="button" class="omni-nav-btn omni-nav-logout" onclick="Session.logout()">LOG OUT</button>
             </div>
         </nav>
     `;
